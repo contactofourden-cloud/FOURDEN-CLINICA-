@@ -664,19 +664,30 @@ function gcalColorText(c){return(c==='5'||c==='6'||c==='1'||c==='2'||c==='3')?'#
 
 // ===== FETCH =====
 function gcalFetch(url,onSuccess,onError){
+  var cbName='_gcb_'+Date.now()+'_'+Math.floor(Math.random()*9999);
+  var script=document.createElement('script');
   var sep=url.indexOf('?')>=0?'&':'?';
-  url=url+sep+'cb='+Date.now();
-  fetch(url,{method:'GET',redirect:'follow',credentials:'omit'})
-  .then(function(r){return r.text();})
-  .then(function(text){
-    var data;
-    try{data=JSON.parse(text);}catch(e){
-      try{var parsed2=JSON.parse(text);onSuccess(parsed2);return;}catch(e2){} throw new Error('Bad JSON: '+text.substring(0,100));
-      if(m)data=JSON.parse(m[0]);else throw new Error('No JSON');
-    }
+  var timeout=setTimeout(function(){
+    cleanup();
+    console.log('gcalFetch timeout');
+    if(onError)onError(new Error('timeout'));
+  },15000);
+  function cleanup(){
+    try{document.head.removeChild(script);}catch(e){}
+    try{delete window[cbName];}catch(e){}
+    clearTimeout(timeout);
+  }
+  window[cbName]=function(data){
+    cleanup();
     onSuccess(data);
-  })
-  .catch(function(e){console.log('fetch err:',e);if(onError)onError(e);});
+  };
+  script.src=url+sep+'callback='+cbName+'&cb='+Date.now();
+  script.onerror=function(){
+    cleanup();
+    console.log('gcalFetch script error');
+    if(onError)onError(new Error('script load failed'));
+  };
+  document.head.appendChild(script);
 }
 
 // ===== PIN =====
@@ -833,7 +844,7 @@ function renderGcalDay(events,date){
     if(top<0){height+=top;top=0;}if(top>100||height<0.5)return;if(height<2)height=2;
     var left=(ev._col/numCols)*100;var width=(1/numCols)*98;
     var evEl=document.createElement('div');evEl.className='gcal-event';
-    evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+gcalColorToCss(ev.color)+';color:'+gcalColorText(ev.color)+';z-index:'+(ev._col+2);
+    var evColor=ev.color||'';evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+gcalColorToCss(evColor)+';color:'+gcalColorText(evColor)+';z-index:'+(ev._col+2);
     var tt=document.createElement('div');tt.className='gcal-event-title';tt.textContent=ev.title;
     var tm=document.createElement('div');tm.className='gcal-event-time';tm.textContent=(ev.time||'')+(ev.end?' — '+ev.end:'');
     evEl.appendChild(tt);evEl.appendChild(tm);
@@ -918,7 +929,7 @@ function renderNDias(events,startDate,numDays){
       if(top<0){height+=top;top=0;}if(top>100||height<0.5)return;if(height<2)height=2;
       var left=(ev._col/nCols)*100;var width=(1/nCols)*97;
       var evEl=document.createElement('div');evEl.className='gcal-event';
-      evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+gcalColorToCss(ev.color)+';color:'+gcalColorText(ev.color)+';z-index:'+(ev._col+2)+';position:absolute';
+      var evColor2=ev.color||'';evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+gcalColorToCss(evColor2)+';color:'+gcalColorText(evColor2)+';z-index:'+(ev._col+2)+';position:absolute';
       var tt2=document.createElement('div');tt2.className='gcal-event-title';tt2.style.fontSize='9px';tt2.textContent=ev.title;
       evEl.appendChild(tt2);
       (function(evData){evEl.onclick=function(e){e.stopPropagation();openEvdet(evData);};})(ev);
