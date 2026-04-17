@@ -641,17 +641,33 @@ header{background:var(--surf);border-bottom:1px solid var(--border);padding:14px
 
 <script>
 function gcalFetch(url, onSuccess, onError){
-  // Add cache buster
   var sep=url.indexOf('?')>=0?'&':'?';
   url=url+sep+'cb='+Date.now();
-  fetch(url, {method:'GET', redirect:'follow'})
-  .then(function(r){
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    return r.json();
+  // Use no-cors won't work for reading, use regular fetch with credentials omitted
+  fetch(url, {
+    method:'GET',
+    redirect:'follow',
+    credentials:'omit',
+    headers:{'Accept':'application/json'}
   })
-  .then(onSuccess)
+  .then(function(r){
+    return r.text();
+  })
+  .then(function(text){
+    // Try to parse JSON from response
+    var data;
+    try{
+      data=JSON.parse(text);
+    }catch(e){
+      // Try to find JSON in response
+      var m=text.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+      if(m)data=JSON.parse(m[0]);
+      else throw new Error('No JSON found');
+    }
+    onSuccess(data);
+  })
   .catch(function(e){
-    console.log('gcalFetch error:',e);
+    console.log('gcalFetch error:',e,url);
     if(onError)onError(e);
   });
 }
