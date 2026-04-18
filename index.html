@@ -655,11 +655,26 @@ function copyAll(){
 
 
 
-var SCRIPT_URL='https://script.google.com/macros/s/AKfycbx8DsVKK3C67bC2tWXUsuyjc1AXy41wpV2Ct6FBQIDJQjmzMY0A0E6m-lIbbYK4UVIo/exec';
+var SCRIPT_URL='https://script.google.com/macros/s/AKfycbwMQ6x0V3mWB5q2UHG6i_51BqEot-bvenXBkcu00YQ3EaU-0mfd0oD7RE-1mtGbGOYI/exec';
 var PIN_HASH='4b9a7f50c0bb198c6f5414c5a8459f5d216d34ab521ea94c060ea35cac66f900';
 
 // ===== GCAL COLORS =====
-var GCAL_COLORS={'':'#1a73e8','1':'#a4bdfc','2':'#7ae28c','3':'#dbadff','4':'#ff887c','5':'#fbd75b','6':'#ffb878','7':'#46d6db','8':'#5484ed','9':'#51b749','10':'#dc2127','11':'#b0b0b0'};
+// COLORES OFICIALES DE GOOGLE CALENDAR API
+// Fuente: https://gist.github.com/ansaso/accaddab0892a3b47d5f4884fda0468b
+var GCAL_COLORS={
+  '':'#5484ed',     // Default azul
+  '1':'#a4bdfc',    // Lavender
+  '2':'#7ae7bf',    // Sage
+  '3':'#dbadff',    // Grape
+  '4':'#ff887c',    // Flamingo
+  '5':'#fbd75b',    // Banana
+  '6':'#ffb878',    // Tangerine
+  '7':'#46d6db',    // Peacock
+  '8':'#e1e1e1',    // Graphite (GRIS)
+  '9':'#5484ed',    // Blueberry (AZUL)
+  '10':'#51b749',   // Basil (VERDE)
+  '11':'#dc2127'    // Tomato (ROJO)
+};
 function gcalColorToCss(c){return GCAL_COLORS[c]||GCAL_COLORS[''];}
 function gcalColorText(c){return(c==='5'||c==='6'||c==='1'||c==='2'||c==='3')?'#000':'#fff';}
 
@@ -793,11 +808,14 @@ function loadAgenda(){
 
 // ===== GCAL RENDER =====
 function renderGcalDay(events,date){
+  console.log('🔍 [DEBUG] Eventos recibidos:', events);
+  
   var HOUR_H=60,START_H=7,END_H=22,TOTAL=END_H-START_H;
   var now=new Date();var nowMin=now.getHours()*60+now.getMinutes();
   var isToday=date.toDateString()===now.toDateString();
   var el=document.getElementById('agendaList');
   var parsed=events.map(function(ev){
+    console.log('🎨 [DEBUG] Color del evento:', ev.title, '→', ev.color);
     var tp=ev.time?ev.time.split(':'):[8,0];var ep=ev.end?ev.end.split(':'):[parseInt(tp[0])+1,tp[1]];
     return {id:ev.id,title:ev.title,time:ev.time,end:ev.end,color:ev.color||'',startMin:parseInt(tp[0])*60+parseInt(tp[1]),endMin:parseInt(ep[0])*60+parseInt(ep[1])};
   });
@@ -843,7 +861,10 @@ function renderGcalDay(events,date){
     if(top<0){height+=top;top=0;}if(top>100||height<0.5)return;if(height<2)height=2;
     var left=(ev._col/numCols)*100;var width=(1/numCols)*98;
     var evEl=document.createElement('div');evEl.className='gcal-event';
-    var evColor=ev.color||'';evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+gcalColorToCss(evColor)+';color:'+gcalColorText(evColor)+';z-index:'+(ev._col+2);
+    var evColor=ev.color||'';
+    var cssColor=gcalColorToCss(evColor);
+    console.log('🖌 [DEBUG] Aplicando color visual:', ev.title, '| ID:', evColor, '| CSS:', cssColor);
+    evEl.style.cssText='top:'+top+'%;height:'+height+'%;left:'+left+'%;width:'+width+'%;background:'+cssColor+';color:'+gcalColorText(evColor)+';z-index:'+(ev._col+2);
     var tt=document.createElement('div');tt.className='gcal-event-title';tt.textContent=ev.title;
     var tm=document.createElement('div');tm.className='gcal-event-time';tm.textContent=(ev.time||'')+(ev.end?' — '+ev.end:'');
     evEl.appendChild(tt);evEl.appendChild(tm);
@@ -1279,15 +1300,15 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
   </div>
   <div class="ncita-field"><label class="ncita-label">Color</label>
     <div class="color-picker" id="ncColorPicker">
-      <div class="color-opt sel" data-gcal="8" style="background:#5484ed" onclick="selNcColor(this)" title="Arándano"></div>
-      <div class="color-opt" data-gcal="10" style="background:#dc2127" onclick="selNcColor(this)" title="Tomate"></div>
-      <div class="color-opt" data-gcal="9" style="background:#51b749" onclick="selNcColor(this)" title="Albahaca"></div>
-      <div class="color-opt" data-gcal="3" style="background:#dbadff" onclick="selNcColor(this)" title="Uva"></div>
-      <div class="color-opt" data-gcal="4" style="background:#ff887c" onclick="selNcColor(this)" title="Flamenco"></div>
-      <div class="color-opt" data-gcal="5" style="background:#fbd75b" onclick="selNcColor(this)" title="Banana"></div>
-      <div class="color-opt" data-gcal="6" style="background:#ffb878" onclick="selNcColor(this)" title="Mandarina"></div>
-      <div class="color-opt" data-gcal="7" style="background:#46d6db" onclick="selNcColor(this)" title="Pavo real"></div>
-      <div class="color-opt" data-gcal="11" style="background:#b0b0b0" onclick="selNcColor(this)" title="Gris/Atendido"></div>
+      <div class="color-opt sel" data-gcal="9" style="background:#5484ed" onclick="selNcColor(this)" title="Azul"></div>
+      <div class="color-opt" data-gcal="10" style="background:#51b749" onclick="selNcColor(this)" title="Verde"></div>
+      <div class="color-opt" data-gcal="11" style="background:#dc2127" onclick="selNcColor(this)" title="Rojo"></div>
+      <div class="color-opt" data-gcal="5" style="background:#fbd75b" onclick="selNcColor(this)" title="Amarillo"></div>
+      <div class="color-opt" data-gcal="6" style="background:#ffb878" onclick="selNcColor(this)" title="Naranja"></div>
+      <div class="color-opt" data-gcal="3" style="background:#dbadff" onclick="selNcColor(this)" title="Morado"></div>
+      <div class="color-opt" data-gcal="4" style="background:#ff887c" onclick="selNcColor(this)" title="Rosa"></div>
+      <div class="color-opt" data-gcal="7" style="background:#46d6db" onclick="selNcColor(this)" title="Turquesa"></div>
+      <div class="color-opt" data-gcal="8" style="background:#e1e1e1" onclick="selNcColor(this)" title="Gris"></div>
     </div>
   </div>
   <div class="ncita-field"><label class="ncita-label">Vista previa</label><div class="ncita-preview" id="ncPreview"></div></div>
@@ -1305,17 +1326,17 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
   <div class="evdet-time" id="evdetTime"></div>
   <div class="mfld"><label class="mlbl">Color</label>
     <div class="evdet-colors" id="evdetColors">
-      <div class="evdet-color-opt" data-gcal="11" style="background:#b0b0b0" onclick="evdetSelColor(this)" title="Gris/Atendido"></div>
-      <div class="evdet-color-opt" data-gcal="8" style="background:#5484ed" onclick="evdetSelColor(this)" title="Arándano"></div>
-      <div class="evdet-color-opt" data-gcal="10" style="background:#dc2127" onclick="evdetSelColor(this)" title="Tomate"></div>
-      <div class="evdet-color-opt" data-gcal="9" style="background:#51b749" onclick="evdetSelColor(this)" title="Albahaca"></div>
-      <div class="evdet-color-opt" data-gcal="3" style="background:#dbadff;color:#000" onclick="evdetSelColor(this)" title="Uva"></div>
-      <div class="evdet-color-opt" data-gcal="4" style="background:#ff887c" onclick="evdetSelColor(this)" title="Flamenco"></div>
-      <div class="evdet-color-opt" data-gcal="5" style="background:#fbd75b" onclick="evdetSelColor(this)" title="Banana"></div>
-      <div class="evdet-color-opt" data-gcal="6" style="background:#ffb878" onclick="evdetSelColor(this)" title="Mandarina"></div>
-      <div class="evdet-color-opt" data-gcal="7" style="background:#46d6db" onclick="evdetSelColor(this)" title="Pavo real"></div>
+      <div class="evdet-color-opt" data-gcal="9" style="background:#5484ed" onclick="evdetSelColor(this)" title="Azul"></div>
+      <div class="evdet-color-opt" data-gcal="10" style="background:#51b749" onclick="evdetSelColor(this)" title="Verde"></div>
+      <div class="evdet-color-opt" data-gcal="11" style="background:#dc2127" onclick="evdetSelColor(this)" title="Rojo"></div>
+      <div class="evdet-color-opt" data-gcal="5" style="background:#fbd75b" onclick="evdetSelColor(this)" title="Amarillo"></div>
+      <div class="evdet-color-opt" data-gcal="6" style="background:#ffb878" onclick="evdetSelColor(this)" title="Naranja"></div>
+      <div class="evdet-color-opt" data-gcal="3" style="background:#dbadff;color:#000" onclick="evdetSelColor(this)" title="Morado"></div>
+      <div class="evdet-color-opt" data-gcal="4" style="background:#ff887c" onclick="evdetSelColor(this)" title="Rosa"></div>
+      <div class="evdet-color-opt" data-gcal="7" style="background:#46d6db" onclick="evdetSelColor(this)" title="Turquesa"></div>
       <div class="evdet-color-opt" data-gcal="1" style="background:#a4bdfc" onclick="evdetSelColor(this)" title="Lavanda"></div>
-      <div class="evdet-color-opt" data-gcal="2" style="background:#7ae28c" onclick="evdetSelColor(this)" title="Salvia"></div>
+      <div class="evdet-color-opt" data-gcal="2" style="background:#7ae7bf" onclick="evdetSelColor(this)" title="Salvia"></div>
+      <div class="evdet-color-opt" data-gcal="8" style="background:#e1e1e1" onclick="evdetSelColor(this)" title="Gris"></div>
     </div>
   </div>
   <div class="mbtns">
