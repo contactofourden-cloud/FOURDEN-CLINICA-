@@ -2,7 +2,9 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <title>Clínicas · Radiología</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -12,7 +14,8 @@
   --gold:#ffd166;--blue:#60a5fa;--green:#4ade80;--red:#ff6b6b;--orange:#fb923c;--purple:#c084fc;--teal:#2dd4bf;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;min-height:-webkit-fill-available}
+html{height:-webkit-fill-available}
 
 /* HEADER */
 header{background:var(--surf);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100}
@@ -282,8 +285,8 @@ header{background:var(--surf);border-bottom:1px solid var(--border);padding:14px
 .evdet-color-opt.sel{border-color:var(--text)}
 .edit-cl-btn{background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:5px 11px;font-size:11px;color:var(--accent2);cursor:pointer;font-family:"Sora",sans-serif;font-weight:600}
 .edit-cl-btn:hover{border-color:var(--accent2)}
-.edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:flex;align-items:flex-start;justify-content:center;padding:12px;box-sizing:border-box;overflow-y:auto}
-.edit-box{background:var(--surf);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;padding:20px;margin:auto;max-height:calc(100vh - 24px);display:flex;flex-direction:column;box-sizing:border-box}
+.edit-ov{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;display:flex;align-items:flex-start;justify-content:center;padding:12px;box-sizing:border-box;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.edit-box{background:var(--surf);border:1px solid var(--border);border-radius:16px;width:100%;max-width:560px;padding:20px;margin:auto;max-height:calc(100svh - 24px);display:flex;flex-direction:column;box-sizing:border-box}
 #editClFields{overflow-y:auto;flex:1}
 .edit-title{font-size:15px;font-weight:700;color:var(--fg);margin-bottom:16px;font-family:"Sora",sans-serif}
 .edit-sec{font-size:10px;font-family:"JetBrains Mono",monospace;color:var(--accent2);letter-spacing:.08em;text-transform:uppercase;margin:14px 0 6px;border-bottom:1px solid var(--border);padding-bottom:4px}
@@ -400,7 +403,7 @@ try{favs=JSON.parse(localStorage.getItem('cf')||'[]')}catch(e){}
 function saveFavs(){try{localStorage.setItem('cf',JSON.stringify(favs))}catch(e){}}
 function isFav(n){return favs.includes(n)}
 function toggleFav(){
-  const n=cur?.['Nombre Clínica'];if(!n)return;
+  const n=cur&&cur['Nombre Clínica'];if(!n)return;
   if(isFav(n))favs=favs.filter(f=>f!==n);else favs.push(n);
   saveFavs();updFavBtn();renderFavPanel();updFavCount();
 }
@@ -782,8 +785,15 @@ function pinPress(d){
   if(pinLocked||pinInput.length>=4)return;
   pinInput+=d;updPinDots();
   if(pinInput.length===4){
-    sha256(pinInput).then(function(h){
-      if(h===PIN_HASH){
+    var shaPromise;
+    try{
+      shaPromise=sha256(pinInput);
+    }catch(e){
+      // crypto.subtle not available (HTTP context) — fallback: simple string compare
+      shaPromise=Promise.resolve(pinInput);
+    }
+    shaPromise.then(function(h){
+      if(h===PIN_HASH||pinInput===PIN_HASH){
         document.getElementById('pinOverlay').style.display='none';
         try{localStorage.setItem('fdn_auth','1');}catch(e){}
       } else {
@@ -916,7 +926,7 @@ function renderGcalDay(events,date){
   parsed.forEach(function(ev){var placed=false;for(var c=0;c<cols.length;c++){var last=cols[c][cols[c].length-1];if(last.endMin<=ev.startMin){cols[c].push(ev);ev._col=c;placed=true;break;}}if(!placed){ev._col=cols.length;cols.push([ev]);}});
   var numCols=Math.max(1,cols.length);
 
-  var wrap=document.createElement('div');wrap.style.cssText='display:flex;position:relative;overflow-y:auto;max-height:calc(100vh - 190px)';
+  var wrap=document.createElement('div');wrap.style.cssText='display:flex;position:relative;overflow-y:auto;max-height:calc(100svh - 190px)';
   var timeCol=document.createElement('div');timeCol.style.cssText='width:48px;flex-shrink:0';
   for(var hr=START_H;hr<=END_H;hr++){
     var ts=document.createElement('div');ts.style.cssText='height:'+HOUR_H+'px;display:flex;align-items:flex-start;justify-content:flex-end;padding-right:6px;padding-top:2px';
@@ -977,7 +987,7 @@ function renderNDias(events,startDate,numDays){
   var hoy=new Date();hoy.setHours(0,0,0,0);
   var now=new Date();var nowMin=now.getHours()*60+now.getMinutes();
   var el=document.getElementById('agendaList');
-  var outer=document.createElement('div');outer.style.cssText='overflow:auto;width:100%;height:calc(100vh - 210px)';
+  var outer=document.createElement('div');outer.style.cssText='overflow:auto;width:100%;height:calc(100svh - 210px)';
   var inner=document.createElement('div');inner.style.cssText='min-width:'+(48+numDays*120)+'px;display:flex;flex-direction:column';
 
   var hdr=document.createElement('div');hdr.style.cssText='display:flex;margin-left:48px;border-bottom:2px solid var(--border)';
@@ -1452,10 +1462,12 @@ function updNcPreview(){
   if(proto){
     var protoLines=proto.split('\n').map(function(l){return l.trim();}).filter(Boolean);
     var studyLine=null,instrLine=null;
-    var headerRx=/^(📋|🧠|⚠|💻|🖨|📦|🗄)/u;
+    // No /u regex flag — use startsWith for mobile compatibility
+    var headerEmojis=['📋','🧠','⚠','💻','🖨','📦','🗄'];
+    function _isHeaderLine(l){return headerEmojis.some(function(e){return l.indexOf(e)===0;});}
     for(var i=0;i<protoLines.length;i++){
-      if(protoLines[i].startsWith('📋')){studyLine=protoLines[i];break;}
-      if(!headerRx.test(protoLines[i])&&!instrLine){instrLine=protoLines[i];}
+      if(protoLines[i].indexOf('📋')===0){studyLine=protoLines[i];break;}
+      if(!_isHeaderLine(protoLines[i])&&!instrLine){instrLine=protoLines[i];}
     }
     if(studyLine){
       // "📋 ESTUDIO BK: fotos especiales..." → extract "fotos especiales..."
@@ -1853,7 +1865,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
     <button class="agenda-view-btn" id="vbtn-semana" onclick="setView('semana')">🗓 SEMANA</button>
     <button class="agenda-new-btn" onclick="openNuevaCita()" style="margin-left:auto;flex-shrink:0">+ NUEVA CITA</button>
   </div>
-  <div id="agendaList" style="overflow:hidden;max-height:calc(100vh - 200px)"><div class="agenda-loading">⏳ Cargando citas...</div></div>
+  <div id="agendaList" style="overflow:hidden;max-height:calc(100svh - 200px)"><div class="agenda-loading">⏳ Cargando citas...</div></div>
 </div>
 
 <!-- NUEVA CITA -->
