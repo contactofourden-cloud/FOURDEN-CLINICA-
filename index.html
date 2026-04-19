@@ -317,6 +317,7 @@ header{background:var(--surf);border-bottom:1px solid var(--border);padding:14px
     <p id="hdr">Cargando...</p>
   </div>
   <button class="hbtn" onclick="toggleFavs()">⭐ <span id="favCount">0</span></button>
+  <button class="hbtn" onclick="openNewClinica()" style="color:var(--accent2);border-color:var(--accent2)33">+ Clínica</button>
 </header>
 
 <div class="main">
@@ -350,6 +351,7 @@ header{background:var(--surf);border-bottom:1px solid var(--border);padding:14px
           <button class="envio-btn" onclick="openEnvio()">📧 Enviar</button>
           <button class="propose-btn" onclick="openPropose()">Cambio</button>
           <button class="edit-cl-btn" onclick="openEditClinica()">🛠 Editar</button>
+          <button class="edit-cl-btn" onclick="openDeleteClinica()" style="color:#ff6b6b;border-color:#ff6b6b33;margin-left:4px">🗑 Borrar</button>
           <button class="copy-btn" onclick="copyAll()">📋 Copiar</button>
         </div>
       </div>
@@ -387,7 +389,7 @@ function saveClinicaEdit(name,edits){try{localStorage.setItem('fdn_edit_'+name,J
 function clearClinicaEdit(name){try{localStorage.removeItem('fdn_edit_'+name);}catch(e){}delete EDITS_MAP[name];}
 function hasEdits(name){return !!EDITS_MAP[name];}
 
-const IDX=DATA.map(c=>norm([
+let IDX=DATA.map(c=>norm([
   c['Nombre Clínica'],c['Doctor / Ortodoncista'],c['Notas'],
   c['Dirección'],c['Email(s) de Contacto'],c['Email Ortodoncia']
 ].join(' ')));
@@ -469,7 +471,7 @@ function mkPills(c){
   if(t.includes('WETRANSFER'))out.push({l:'☁ WeTransfer',cls:'p-wet'});
   if(t.includes('DICOM'))out.push({l:'⚕ DICOM',cls:'p-dicom'});
   if(c['Nube Dataprius']==='SÍ'||env.includes('dataprius'))out.push({l:'📦 Dataprius',cls:'p-dataprius'});
-  if(c['Nube Nueva']==='SÍ'||t.includes('NUBE'))out.push({l:'🗄 Nube Nueva',cls:'p-nube-nueva'});
+  if(c['Nube Nueva']==='SÍ')out.push({l:'🗄 Nube Nueva',cls:'p-nube-nueva'});
   if(t.includes('CD'))out.push({l:'💿 CD',cls:'p-cd'});
   if(env.includes('whatsapp'))out.push({l:'💬 WhatsApp',cls:'p-wapp'});
   if(dg==='always')out.push({l:'🧠 Diagnocat SIEMPRE',cls:'p-diagnocat-always'});
@@ -502,14 +504,13 @@ function render(c){
   const _envioInstr=c['Envío (Instrucciones)']||'No especificado';
   const _tipoEnvio=(c['Tipo Envío (Make)']||'').toUpperCase();
   const _envioLower=(c['Envío (Instrucciones)']||'').toLowerCase();
-  const _isDigital=c['_envio_digital']==='si'||_tipoEnvio.includes('EMAIL')||_tipoEnvio.includes('PDF')||_envioLower.includes('digital')||_envioLower.includes('mail');
-  const _isImpreso=c['_envio_impreso']==='si'||_tipoEnvio.includes('IMPRESO')||_envioLower.includes('impreso');
+  const _isDigital=c['_envio_digital']==='si'||_envioLower.includes('digital');
+  const _isImpreso=c['_envio_impreso']==='si'||_envioLower.includes('impreso');
   h+=`<div class="ib fw"><div class="il">📦 Protocolo de envío</div><div class="iv hl">${_envioInstr}</div>`;
   h+=`<div class="nube-tags" style="margin-top:6px">`;
-  if(_isDigital)h+=`<span class="nube-tag" style="background:#1a2a1a;color:#4ecb71;border-color:#4ecb7133">💻 Digital</span>`;
-  if(_isImpreso)h+=`<span class="nube-tag" style="background:#1a1a2a;color:#7b8cde;border-color:#7b8cde33">🖨 Impreso</span>`;
+  // Digital/Impreso shown in top pills — not duplicated here
   const hasDP=c['Nube Dataprius']==='SÍ'||_envioLower.includes('dataprius');
-  const hasNN=c['Nube Nueva']==='SÍ'||_tipoEnvio.includes('NUBE');
+  const hasNN=c['Nube Nueva']==='SÍ';
   if(hasDP)h+=`<span class="nube-tag nt-dataprius">📦 Dataprius</span>`;
   if(hasNN)h+=`<span class="nube-tag nt-nueva">🗄 Nube Nueva</span>`;
   h+=`</div></div>`;
@@ -544,21 +545,41 @@ function render(c){
     h+=`</div></div>`;
   }
 
-  // ESTUDIOS ORTODONCIA — price + description fields
+  // ESTUDIOS ORTODONCIA — Estándar + Invisible
   const _estPrecio=c['_estudio_precio']||'';
   const _estDesc=c['_estudio_descripcion']||c['Estudios Ortodoncia']||'';
+  const _estInvPrecio=c['_estudioInv_precio']||'';
+  const _estInvDesc=c['_estudioInv_descripcion']||'';
   const ortoEmail=c['Email Ortodoncia']||'';
-  if(_estPrecio||_estDesc||ortoEmail){
+  const hasOrtoStd=_estPrecio||_estDesc;
+  const hasOrtoInv=_estInvPrecio||_estInvDesc;
+  if(hasOrtoStd||hasOrtoInv||ortoEmail){
     h+=`<div class="ib"><div class="il">🦷 Estudios Ortodoncia</div>`;
-    if(_estPrecio)h+=`<div style="display:inline-block;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:5px 12px;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--purple);margin-bottom:7px">${_estPrecio}</div>`;
-    if(_estDesc){
-      h+=`<div class="orto-grid">`;
-      _estDesc.split(';').map(s=>s.trim()).filter(Boolean).forEach(item=>{
-        const m=item.match(/^(.+?):\s*(.+)$/);
-        if(m)h+=`<div class="orto-row"><span class="orto-name">${m[1]}</span><span class="orto-price">${m[2]}</span></div>`;
-        else h+=`<div class="orto-row" style="grid-column:1/-1"><span class="orto-name" style="color:var(--fg)">${item}</span></div>`;
-      });
-      h+=`</div>`;
+    if(hasOrtoStd){
+      h+=`<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase">Estándar</div>`;
+      if(_estPrecio)h+=`<div style="display:inline-block;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--purple);margin-bottom:6px">${_estPrecio}</div>`;
+      if(_estDesc){
+        h+=`<div class="orto-grid">`;
+        _estDesc.split(';').map(s=>s.trim()).filter(Boolean).forEach(item=>{
+          const m=item.match(/^(.+?):\s*(.+)$/);
+          if(m)h+=`<div class="orto-row"><span class="orto-name">${m[1]}</span><span class="orto-price">${m[2]}</span></div>`;
+          else h+=`<div class="orto-row" style="grid-column:1/-1"><span class="orto-name" style="color:var(--fg)">${item}</span></div>`;
+        });
+        h+=`</div>`;
+      }
+    }
+    if(hasOrtoInv){
+      h+=`<div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin:${hasOrtoStd?'10px':0} 0 4px 0;letter-spacing:.04em;text-transform:uppercase">Invisible / Alineadores</div>`;
+      if(_estInvPrecio)h+=`<div style="display:inline-block;background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:4px 12px;font-family:'JetBrains Mono',monospace;font-size:15px;font-weight:700;color:var(--purple);margin-bottom:6px">${_estInvPrecio}</div>`;
+      if(_estInvDesc){
+        h+=`<div class="orto-grid">`;
+        _estInvDesc.split(';').map(s=>s.trim()).filter(Boolean).forEach(item=>{
+          const m=item.match(/^(.+?):\s*(.+)$/);
+          if(m)h+=`<div class="orto-row"><span class="orto-name">${m[1]}</span><span class="orto-price">${m[2]}</span></div>`;
+          else h+=`<div class="orto-row" style="grid-column:1/-1"><span class="orto-name" style="color:var(--fg)">${item}</span></div>`;
+        });
+        h+=`</div>`;
+      }
     }
     if(ortoEmail){
       h+=`<div style="margin-top:7px">`;
@@ -582,12 +603,12 @@ function render(c){
     h+=`</div></div>`;
   }
 
-  // CUSTOM PRUEBAS (from edits)
+  // CUSTOM PRUEBAS (from edits) — GRID CARDS like TAC/RX
   const customPruebasCard=(c['_custom_pruebas']||[]).filter(p=>p.label);
   if(customPruebasCard.length){
-    h+=`<div class="ib"><div class="il">⚡ Pruebas específicas</div><div class="otras-list">`;
+    h+=`<div class="ib"><div class="il">⚡ Pruebas específicas</div><div class="rx-grid">`;
     customPruebasCard.forEach(p=>{
-      h+=`<div class="otras-row"><span class="otras-name">${p.label}</span>${p.price?`<span class="otras-price">${p.price}</span>`:''}`;
+      h+=`<div class="rx-item"><div class="rx-label">${p.label}</div><div class="rx-val ${p.price?'':'empty'}">${p.price||'—'}</div></div>`;
     });
     h+=`</div></div>`;
   }
@@ -1080,8 +1101,87 @@ function deleteEvdet(){
   function(){toast('ERROR AL BORRAR');});
 }
 
-// ===== NUEVA CITA =====
-var ncClinicaSel=null;var ncPruebaSel=null;var ncSelectedColor='8';
+// ===== ADD / DELETE CLINIC =====
+var CUSTOM_CLINICS_KEY='fdn_custom_clinics';
+
+function loadCustomClinics(){
+  try{return JSON.parse(localStorage.getItem(CUSTOM_CLINICS_KEY)||'[]');}catch(e){return[];}
+}
+function saveCustomClinics(arr){
+  try{localStorage.setItem(CUSTOM_CLINICS_KEY,JSON.stringify(arr));}catch(e){}
+}
+function getCustomClinic(name){
+  return loadCustomClinics().find(function(c){return c['Nombre Clínica']===name;})||null;
+}
+
+// Merge custom clinics into DATA on init
+(function(){
+  var custom=loadCustomClinics();
+  custom.forEach(function(cc){
+    if(!DATA.find(function(d){return d['Nombre Clínica']===cc['Nombre Clínica'];})){
+      DATA.push(cc);
+      IDX.push(norm((cc['Nombre Clínica']||'')+' '+(cc['Doctor / Ortodoncista']||'')+' '+(cc['Dirección']||'')));
+    }
+  });
+})();
+
+function openNewClinica(){
+  document.getElementById('newClName').value='';
+  document.getElementById('newClDoctor').value='';
+  document.getElementById('newClDir').value='';
+  document.getElementById('newClTel').value='';
+  document.getElementById('newClEmail').value='';
+  document.getElementById('newClOverlay').style.display='flex';
+}
+function closeNewClinica(){document.getElementById('newClOverlay').style.display='none';}
+
+function saveNewClinica(){
+  var name=document.getElementById('newClName').value.trim().toUpperCase();
+  if(!name){alert('El nombre de la clínica es obligatorio');return;}
+  if(DATA.find(function(d){return d['Nombre Clínica']===name;})){
+    alert('Ya existe una clínica con ese nombre');return;
+  }
+  var newC={'Nombre Clínica':name,'Doctor / Ortodoncista':document.getElementById('newClDoctor').value.trim(),'Dirección':document.getElementById('newClDir').value.trim(),'Teléfono':document.getElementById('newClTel').value.trim(),'Email(s) de Contacto':document.getElementById('newClEmail').value.trim(),'_custom':true,'Tipo Envío (Make)':'','Envío (Instrucciones)':'','AFM':'','Nube Dataprius':'','Nube Nueva':'','_diagnocat':'','TAC 1 Arcada (€)':'','TAC 2 Arcadas (€)':'','TAC Cuadrante (€)':'','TAC Post Cirugía (€)':'','Ortopantomografía (€)':'','Tele Lateral (€)':'','Orto+Tele (€)':'','Tele+Cefalometría (€)':'','Estudios Ortodoncia':'','Email Ortodoncia':'','Otras Pruebas / Precios':'','Notas':'','_email_tags':{}};
+  DATA.push(newC);
+  var customs=loadCustomClinics();customs.push(newC);saveCustomClinics(customs);
+  IDX.push(norm((newC['Nombre Clínica']||'')+' '+(newC['Doctor / Ortodoncista']||'')+' '+(newC['Dirección']||'')));
+  closeNewClinica();
+  // Select new clinic
+  cur=newC;sel(DATA.length-1);
+  toast('✅ CLÍNICA CREADA — abre 🛠 Editar para completar los datos');
+}
+
+function openDeleteClinica(){
+  if(!cur)return;
+  document.getElementById('delClName').textContent=cur['Nombre Clínica'];
+  document.getElementById('delClOverlay').style.display='flex';
+}
+function closeDeleteClinica(){document.getElementById('delClOverlay').style.display='none';}
+
+function confirmDeleteClinica(){
+  if(!cur)return;
+  var name=cur['Nombre Clínica'];
+  // Remove from DATA
+  var idx=DATA.findIndex(function(d){return d['Nombre Clínica']===name;});
+  if(idx>=0)DATA.splice(idx,1);
+  IDX.splice(idx,1);
+  // Remove from custom clinics if custom
+  var customs=loadCustomClinics().filter(function(c){return c['Nombre Clínica']!==name;});
+  saveCustomClinics(customs);
+  // Remove edits
+  clearClinicaEdit(name);
+  delete EDITS_MAP[name];
+  // Remove from favs
+  favs=favs.filter(function(f){return f!==name;});saveFavs();updFavCount();
+  cur=null;
+  closeDeleteClinica();
+  // Show first clinic
+  if(DATA.length>0){cur=DATA[0];sel(0);}
+  toast('🗑 CLÍNICA ELIMINADA');
+}
+
+
+var ncClinicaSel=null;var ncPruebaSel=null;var ncSelectedColor='9';var ncBaseProtocol='';
 var PRUEBAS_DEF=[
   {key:'tac1',label:'TAC 1 ARCADA',field:'TAC 1 Arcada (€)'},
   {key:'tacCuad',label:'TAC CUADRANTE',field:'TAC Cuadrante (€)'},
@@ -1100,7 +1200,7 @@ function selNcColor(el){
 }
 
 function openNuevaCita(){
-  ncClinicaSel=null;ncPruebaSel=null;ncSelectedColor='8';
+  ncClinicaSel=null;ncPruebaSel=null;ncSelectedColor='9';ncBaseProtocol='';
   document.getElementById('ncPaciente').value='';
   document.getElementById('ncTelefono').value='';
   document.getElementById('ncClinicaInput').value='';
@@ -1133,6 +1233,15 @@ function updNcFechaLabel(){
   lbl.textContent='📅 '+dias2[d.getDay()]+', '+d.getDate()+' DE '+meses3[d.getMonth()];
 }
 
+function ncShiftDays(n){
+  var el=document.getElementById('ncFecha');
+  if(!el.value)return;
+  var d=new Date(el.value+'T12:00:00');
+  d.setDate(d.getDate()+n);
+  el.value=d.getFullYear()+'-'+padZ(d.getMonth()+1)+'-'+padZ(d.getDate());
+  updNcFechaLabel();updNcPreview();
+}
+
 function ncSearchClinica(){
   var v=document.getElementById('ncClinicaInput').value.trim();
   var sugg=document.getElementById('ncClinicaSugg');
@@ -1155,6 +1264,32 @@ function ncSearchClinica(){
   sugg.style.display='block';
 }
 
+function _addEstudioBtn(grid,c,label,price,desc){
+  var btn=document.createElement('button');btn.className='prueba-btn';
+  var nd=document.createElement('div');nd.className='prueba-btn-name';nd.textContent=label;
+  var pd=document.createElement('div');pd.className='prueba-btn-price';pd.textContent=price||'VER PROTOCOLO';
+  btn.appendChild(nd);btn.appendChild(pd);
+  btn.onclick=(function(lbl,pr,ds){return function(){
+    document.querySelectorAll('.prueba-btn').forEach(function(b){b.classList.remove('sel');});
+    btn.classList.add('sel');
+    ncPruebaSel={key:'estudio',label:lbl,field:'Estudios Ortodoncia'};
+    var pm=pr.match(/(\d+)/);
+    if(pm){document.getElementById('ncPrecio').value=pm[1];document.getElementById('ncPrecioDisplay').textContent=pm[1]+'€';}
+    else{document.getElementById('ncPrecio').value='';document.getElementById('ncPrecioDisplay').textContent='—';}
+    document.getElementById('ncPrecioField').style.display='block';
+    document.getElementById('ncPruebaOtra').value='';
+    // Inject description into protocol — always appended to ncBaseProtocol (safe base)
+    var protoEl=document.getElementById('ncProto');
+    if(ds){
+      protoEl.value=ncBaseProtocol+(ncBaseProtocol&&!ncBaseProtocol.endsWith('\n')?'\n':'')+'📋 '+lbl+': '+ds;
+    } else {
+      protoEl.value=ncBaseProtocol;
+    }
+    updNcPreview();
+  };})(label,price,desc);
+  grid.appendChild(btn);
+}
+
 function selectNcClinica(c){
   ncClinicaSel=c;ncPruebaSel=null;
   document.getElementById('ncClinicaInput').value=c['Nombre Clínica'];
@@ -1162,32 +1297,87 @@ function selectNcClinica(c){
   if(c['AFM']){document.getElementById('ncAfmMsg').textContent='⚠ AFM: '+c['AFM'];document.getElementById('ncAfmField').style.display='block';}
   else document.getElementById('ncAfmField').style.display='none';
   var proto=c['Envío (Instrucciones)']||'';
-  var extras=[];
-  if(c['_diagnocat']==='always')extras.push('🧠 DIAGNOCAT SIEMPRE');
-  if(c['Nube Dataprius']==='SÍ')extras.push('📦 NUBE DATAPRIUS');
-  if(c['Nube Nueva']==='SÍ')extras.push('🗄 NUBE NUEVA');
-  document.getElementById('ncProto').value=(extras.length?extras.join(' · ')+'\n':'')+proto;
+  var protoLower=proto.toLowerCase();
+  var headerLines=[];
+  // Diagnocat
+  var dgVal=c['_diagnocat']||'';
+  if(dgVal==='always')headerLines.push('🧠 DIAGNOCAT OBLIGATORIO SIEMPRE');
+  else if(dgVal==='optional_price')headerLines.push('🧠 Diagnocat — solo si lo marca en volante (+precio)');
+  else if(dgVal==='upload')headerLines.push('🧠 Subir imágenes a Diagnocat (sin coste)');
+  // AFM (only if not already mentioned in instructions)
+  if(c['AFM']&&!protoLower.includes('afm'))headerLines.push('⚠ AFM: '+c['AFM']);
+  // Digital / Impreso (only if not already in text)
+  var _isDigF=c['_envio_digital']==='si'||protoLower.includes('digital');
+  var _isImpF=c['_envio_impreso']==='si'||protoLower.includes('impreso');
+  var fmtParts=[];
+  if(_isDigF&&!protoLower.includes('digital'))fmtParts.push('💻 Digital');
+  if(_isImpF&&!protoLower.includes('impreso'))fmtParts.push('🖨 Impreso');
+  if(fmtParts.length)headerLines.push(fmtParts.join(' + '));
+  // Nube (only if not already in text)
+  if(c['Nube Dataprius']==='SÍ'&&!protoLower.includes('dataprius'))headerLines.push('📦 NUBE DATAPRIUS');
+  if(c['Nube Nueva']==='SÍ'&&!protoLower.includes('nube'))headerLines.push('🗄 NUBE NUEVA');
+  // Build base protocol and store in JS variable (not DOM attribute — DOM attribute causes bugs)
+  var builtProto=(headerLines.length?headerLines.join('\n')+'\n':'')+proto;
+  ncBaseProtocol=builtProto;
+  document.getElementById('ncProto').value=builtProto;
   document.getElementById('ncProtoField').style.display='block';
+  // Show/hide diagnocat badge in cita form
+  var dgBadge=document.getElementById('ncDiagnocatBadge');
+  if(dgBadge){
+    var dgVal=c['_diagnocat']||'';
+    if(dgVal==='always'){dgBadge.style.display='block';dgBadge.textContent='🧠 DIAGNOCAT OBLIGATORIO SIEMPRE';}
+    else if(dgVal==='optional_price'){dgBadge.style.display='block';dgBadge.textContent='🧠 Diagnocat si se marca en volante (+precio)';}
+    else if(dgVal==='upload'){dgBadge.style.display='block';dgBadge.textContent='🧠 Subir imágenes a Diagnocat';}
+    else{dgBadge.style.display='none';}
+  }
   var grid=document.getElementById('ncPruebaGrid');grid.innerHTML='';
   PRUEBAS_DEF.forEach(function(p){
     var val=p.field?c[p.field]||'':'';
-    // Special handling for ESTUDIO ORTODONCIA — use structured price+desc fields
-    var estudioPrice='';var estudioDesc='';
     if(p.key==='estudio'){
-      estudioPrice=c['_estudio_precio']||'';
-      estudioDesc=c['_estudio_descripcion']||val||'';
-      if(!estudioPrice&&val){var pm0=val.match(/(\d+)/);if(pm0)estudioPrice=pm0[1]+'€';}
+      // Parse ESTUDIO ORTODONCIA: can be single or multi-variant (separated by ;)
+      // Use _estudio_precio/_estudio_descripcion if set (from edit), else parse Estudios Ortodoncia field
+      var hasEdits=c['_estudio_precio']||c['_estudio_descripcion'];
+      if(hasEdits){
+        // Single edited entry
+        var ePrice=c['_estudio_precio']||'';
+        var eDesc=c['_estudio_descripcion']||val||'';
+        if(!ePrice&&val){var pm0=val.match(/(\d+)/);if(pm0)ePrice=pm0[1]+'€';}
+        _addEstudioBtn(grid,c,'ESTUDIO ORTODONCIA',ePrice,eDesc);
+      } else if(val){
+        // Parse semicolon-separated variants
+        var variants=val.split(';').map(function(s){return s.trim();}).filter(Boolean);
+        if(variants.length>1){
+          variants.forEach(function(v){
+            // Extract name, price, description from "Name: Price€ (desc)" or "Name Price€" or "Name: price€"
+            var name=v,price2='',desc2='';
+            var m=v.match(/^(.+?):\s*(\d+)€?\s*(.*)$/);
+            if(!m)m=v.match(/^(.+?)\s+(\d+)€?\s*(.*)$/);
+            if(m){name=m[1].trim();price2=m[2]+'€';desc2=m[3].replace(/^\(|\)$/g,'').trim();}
+            else{var pm3=v.match(/(\d+)€/);if(pm3)price2=pm3[1]+'€';}
+            _addEstudioBtn(grid,c,name,price2,desc2||v);
+          });
+        } else {
+          // Single variant — extract price
+          var pm4=val.match(/(\d+)/);
+          _addEstudioBtn(grid,c,'ESTUDIO ORTODONCIA',pm4?pm4[1]+'€':'',val);
+        }
+      } else {
+        _addEstudioBtn(grid,c,'ESTUDIO ORTODONCIA','','');
+      }
+      // Also add INVISIBLE study if set
+      if(c['_estudioInv_precio']||c['_estudioInv_descripcion']){
+        _addEstudioBtn(grid,c,'ESTUDIO INVISIBLE',c['_estudioInv_precio']||'',c['_estudioInv_descripcion']||'');
+      }
+      return; // skip normal rendering for estudio
     }
     var btn=document.createElement('button');btn.className='prueba-btn';
     var nd=document.createElement('div');nd.className='prueba-btn-name';nd.textContent=p.label;
     var pd=document.createElement('div');pd.className='prueba-btn-price';
     var price='';
-    if(p.key==='estudio'){
-      price=estudioPrice;
-    } else if(val){var pm=val.match(/(\d+)€/);if(pm)price=pm[1]+'€';}
+    if(val){var pm=val.match(/(\d+)€/);if(pm)price=pm[1]+'€';}
     pd.textContent=p.field===null?'ESCRIBIR':price||'VER PROTOCOLO';
     btn.appendChild(nd);btn.appendChild(pd);
-    btn.onclick=(function(pCopy,valCopy,ePriceC,eDescC){return function(){
+    btn.onclick=(function(pCopy,valCopy){return function(){
       document.querySelectorAll('.prueba-btn').forEach(function(b){b.classList.remove('sel');});
       btn.classList.add('sel');
       if(pCopy.field===null){
@@ -1198,27 +1388,16 @@ function selectNcClinica(c){
         setTimeout(function(){document.getElementById('ncPruebaOtra').focus();},50);
       } else {
         ncPruebaSel=pCopy;
-        var priceToUse=pCopy.key==='estudio'?ePriceC:valCopy;
-        var pm2=priceToUse.match(/(\d+)/);
+        var pm2=valCopy.match(/(\d+)/);
         if(pm2){document.getElementById('ncPrecio').value=pm2[1];document.getElementById('ncPrecioDisplay').textContent=pm2[1]+'€';}
         else{document.getElementById('ncPrecio').value='';document.getElementById('ncPrecioDisplay').textContent='—';}
         document.getElementById('ncPrecioField').style.display='block';
         document.getElementById('ncPruebaOtra').value='';
-        // For ESTUDIO ORTODONCIA: inject description into protocol textarea
-        if(pCopy.key==='estudio'&&eDescC){
-          var protoEl=document.getElementById('ncProto');
-          var baseProto=protoEl.getAttribute('data-base-proto')||protoEl.value;
-          protoEl.setAttribute('data-base-proto',baseProto);
-          protoEl.value=baseProto+(baseProto&&!baseProto.endsWith('\n')?'\n':'')+'📋 ESTUDIO ORTODONCIA: '+eDescC;
-        } else {
-          // Restore base protocol when switching to non-estudio prueba
-          var protoEl2=document.getElementById('ncProto');
-          var bp=protoEl2.getAttribute('data-base-proto');
-          if(bp!==null){protoEl2.value=bp;protoEl2.removeAttribute('data-base-proto');}
-        }
+        // Restore protocol to base (removes any estudio description appended)
+        document.getElementById('ncProto').value=ncBaseProtocol;
       }
       updNcPreview();
-    };})(p,val,estudioPrice,estudioDesc);
+    };})(p,val);
     grid.appendChild(btn);
   });
 
@@ -1267,8 +1446,25 @@ function updNcPreview(){
   if(prueba)parts.push(prueba);
   if(precio)parts.push(precio+'€');
   if(clinica)parts.push(clinica);
+  // From protocol: prefer 📋 study description, then first real instruction line
+  // Skip settings header lines (🧠⚠💻🖨📦🗄) — they're redundant in calendar title
   var proto=document.getElementById('ncProto').value.trim();
-  if(proto)parts.push(proto.split('\n')[0]);
+  if(proto){
+    var protoLines=proto.split('\n').map(function(l){return l.trim();}).filter(Boolean);
+    var studyLine=null,instrLine=null;
+    var headerRx=/^(📋|🧠|⚠|💻|🖨|📦|🗄)/u;
+    for(var i=0;i<protoLines.length;i++){
+      if(protoLines[i].startsWith('📋')){studyLine=protoLines[i];break;}
+      if(!headerRx.test(protoLines[i])&&!instrLine){instrLine=protoLines[i];}
+    }
+    if(studyLine){
+      // "📋 ESTUDIO BK: fotos especiales..." → extract "fotos especiales..."
+      var desc=studyLine.replace(/^📋[^:]*:\s*/,'').trim()||studyLine.replace(/^📋\s*/,'').trim();
+      if(desc)parts.push(desc);
+    } else if(instrLine){
+      parts.push(instrLine);
+    }
+  }
   document.getElementById('ncPreview').textContent=parts.join(' · ');
 }
 
@@ -1281,7 +1477,7 @@ function guardarCita(){
   var hora=document.getElementById('ncHora').value;
   var fecha=document.getElementById('ncFecha').value;
   if(!pac||!hora){toast('FALTAN NOMBRE U HORA');return;}
-  var title=document.getElementById('ncPreview').textContent||pac.toUpperCase()+' '+prueba+' '+precio+'€ '+clinica;
+  var title=(document.getElementById('ncPreview').textContent||pac.toUpperCase()+' '+prueba+' '+precio+'€ '+clinica).toUpperCase();
   var d=fecha?new Date(fecha+'T12:00:00'):new Date(agendaDate);
   var hp=hora.split(':');d.setHours(parseInt(hp[0]),parseInt(hp[1]),0,0);
   var end=new Date(d.getTime()+30*60000);
@@ -1316,22 +1512,21 @@ var _editFields=[
   {k:'Tele Lateral (€)',label:'Tele Lateral',type:'text'},
   {k:'Orto+Tele (€)',label:'Orto + Tele Lateral',type:'text'},
   {k:'Tele+Cefalometría (€)',label:'Tele + Trazado / Cefalometría',type:'text'},
-  {sec:'ORTODONCIA'},
-  {k:'_estudio_precio',label:'Precio Estudio Ortodoncia (ej: 90€)',type:'text'},
-  {k:'_estudio_descripcion',label:'Descripción / qué incluye (separa con ;)',type:'textarea'},
-  {k:'Estudios Ortodoncia',label:'Estudios Ortodoncia (campo original — usar descripción arriba)',type:'textarea'},
-  {k:'Email Ortodoncia',label:'Email Ortodoncia (separados por ;)',type:'text'},
-  {sec:'OTRAS PRUEBAS'},
-  {k:'Otras Pruebas / Precios',label:'Otras Pruebas y Precios',type:'textarea'},
+  {sec:'ORTODONCIA — ESTUDIO ESTÁNDAR'},
+  {k:'_estudio_precio',label:'Precio (ej: 90€)',type:'text'},
+  {k:'_estudio_descripcion',label:'Descripción / qué incluye',type:'textarea'},
+  {sec:'ORTODONCIA — ESTUDIO INVISIBLE / ALINEADORES'},
+  {k:'_estudioInv_precio',label:'Precio (ej: 110€)',type:'text'},
+  {k:'_estudioInv_descripcion',label:'Descripción / qué incluye',type:'textarea'},
+  {k:'Email Ortodoncia',label:'Email Ortodoncia (ambos estudios — separados por ;)',type:'text'},
   {sec:'PROTOCOLO DE ENVÍO'},
   {k:'Envío (Instrucciones)',label:'Instrucciones de Envío',type:'textarea'},
-  {k:'Tipo Envío (Make)',label:'Tipo de Envío (Make)',type:'text'},
   {k:'_envio_digital',label:'Envío Digital',type:'toggle'},
   {k:'_envio_impreso',label:'Envío Impreso',type:'toggle'},
   {k:'AFM',label:'AFM (dejar vacío si no aplica)',type:'text'},
   {k:'Nube Dataprius',label:'Nube Dataprius (SÍ o vacío)',type:'text'},
   {k:'Nube Nueva',label:'Nube Nueva (SÍ o vacío)',type:'text'},
-  {k:'_diagnocat',label:'Diagnocat (always / optional_price / upload / vacío)',type:'text'},
+  {k:'_diagnocat',label:'Diagnocat',type:'diagnocat'},
   {sec:'CORREOS Y ETIQUETAS',type:'emails'},
   {sec:'PRUEBAS ADICIONALES (aparecen al crear cita)',type:'pruebas'},
   {sec:'NOTAS INTERNAS'},
@@ -1360,6 +1555,35 @@ function openEditClinica(){
     if(f.type==='textarea'){
       inp=document.createElement('textarea');inp.className='edit-textarea';inp.rows=3;
       inp.value=val;inp.setAttribute('data-field',f.k);
+    } else if(f.type==='diagnocat'){
+      // Spanish 4-option selector
+      var dgOpts=[
+        {v:'',label:'❌ No usar Diagnocat'},
+        {v:'always',label:'🧠 Siempre (obligatorio)'},
+        {v:'optional_price',label:'💸 Solo si lo marca en volante (+precio)'},
+        {v:'upload',label:'📤 Subir imágenes (sin coste extra)'},
+      ];
+      inp=document.createElement('div');inp.style.cssText='display:flex;flex-direction:column;gap:6px';
+      dgOpts.forEach(function(opt){
+        var btn=document.createElement('button');
+        var isActive=val===opt.v;
+        btn.textContent=opt.label;
+        btn.style.cssText='padding:8px 12px;border-radius:8px;font-size:12px;cursor:pointer;font-family:Sora,sans-serif;text-align:left;transition:all .15s;';
+        btn.style.background=isActive?'var(--accent2)':'var(--surf2)';
+        btn.style.color=isActive?'#000':'var(--fg)';
+        btn.style.border=isActive?'1px solid var(--accent2)':'1px solid var(--border)';
+        btn.setAttribute('data-dg-val',opt.v);
+        btn.onclick=function(){
+          inp.querySelectorAll('button').forEach(function(b){
+            b.style.background='var(--surf2)';b.style.color='var(--fg)';b.style.border='1px solid var(--border)';
+          });
+          btn.style.background='var(--accent2)';btn.style.color='#000';btn.style.border='1px solid var(--accent2)';
+          inp.setAttribute('data-value',opt.v);
+        };
+        inp.appendChild(btn);
+      });
+      inp.setAttribute('data-field',f.k);
+      inp.setAttribute('data-value',val);
     } else if(f.type==='toggle'){
       // Auto-detect from existing data if field is empty
       var autoVal=val;
@@ -1468,7 +1692,7 @@ function saveEditClinica(){
   flds.querySelectorAll('[data-field]').forEach(function(inp){
     var field=inp.getAttribute('data-field');
     if(!field)return;
-    // toggle div uses data-value attribute
+    // toggle/diagnocat div uses data-value attribute
     if(inp.tagName==='DIV'&&inp.hasAttribute('data-value')){
       edits[field]=inp.getAttribute('data-value');
     } else if(inp.tagName==='INPUT'||inp.tagName==='TEXTAREA'){
@@ -1633,7 +1857,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 </div>
 
 <!-- NUEVA CITA -->
-<div id="ncitaOverlay" class="ncita-overlay" style="display:none" onclick="if(event.target===this)closeNuevaCita()">
+<div id="ncitaOverlay" class="ncita-overlay" style="display:none">
 <div class="ncita-box">
   <div class="ncita-title">📅 NUEVA CITA</div>
   <div class="ncita-field"><label class="ncita-label">Paciente</label><input type="text" class="ncita-input" id="ncPaciente" placeholder="Nombre y apellido" oninput="updNcPreview()"></div>
@@ -1647,11 +1871,17 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
   <div class="ncita-field" id="ncPruebaField" style="display:none"><label class="ncita-label">Prueba</label><div class="prueba-grid" id="ncPruebaGrid"></div><input type="text" class="ncita-input" id="ncPruebaOtra" placeholder="O escribe la prueba..." style="margin-top:8px;text-transform:uppercase" oninput="updNcPreview()"></div>
   <div class="ncita-field" id="ncPrecioField" style="display:none"><label class="ncita-label">Precio — editable</label><div class="ncita-precio" id="ncPrecioDisplay">—</div><input type="number" class="ncita-input" id="ncPrecio" placeholder="€" style="margin-top:6px;font-size:16px;font-weight:700" oninput="updNcPreview()"></div>
   <div class="ncita-field" id="ncAfmField" style="display:none"><div style="background:#2a0808;border:1px solid #ff444440;border-radius:8px;padding:10px 12px;font-size:12px;color:#ff8888" id="ncAfmMsg"></div></div>
+  <div id="ncDiagnocatBadge" style="display:none;background:#2a0808;border:1px solid #ff6b6b44;border-radius:8px;padding:9px 14px;font-size:12px;color:#ff8888;font-weight:600;margin:0 0 8px 0"></div>
   <div class="ncita-field" id="ncProtoField" style="display:none"><label class="ncita-label">Protocolo — editable</label><textarea class="ncita-input" id="ncProto" rows="3" style="resize:vertical;line-height:1.5" oninput="updNcPreview()"></textarea></div>
   <div class="ncita-field"><label class="ncita-label">Fecha y hora</label>
     <div style="display:flex;gap:8px">
-      <input type="date" class="ncita-input" id="ncFecha" style="flex:1" oninput="updNcPreview()">
+      <input type="date" class="ncita-input" id="ncFecha" style="flex:1.5" oninput="updNcPreview()">
       <input type="time" class="ncita-input" id="ncHora" style="flex:1" oninput="updNcPreview()">
+    </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button onclick="ncShiftDays(-1)" style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:7px;padding:5px;font-size:11px;color:var(--muted);cursor:pointer;font-family:Sora,sans-serif">← 1 día</button>
+      <button onclick="ncShiftDays(1)" style="flex:1;background:var(--surf2);border:1px solid var(--border);border-radius:7px;padding:5px;font-size:11px;color:var(--muted);cursor:pointer;font-family:Sora,sans-serif">1 día →</button>
+      <button onclick="ncShiftDays(3)" style="flex:1.5;background:var(--surf2);border:1px solid var(--accent2)33;border-radius:7px;padding:5px;font-size:11px;color:var(--accent2);cursor:pointer;font-family:Sora,sans-serif;font-weight:600">+3 días →</button>
     </div>
     <div style="font-size:11px;color:var(--accent2);margin-top:5px;font-family:JetBrains Mono,monospace" id="ncFechaLabel"></div>
   </div>
@@ -1735,7 +1965,7 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
 <div id="toast"></div>
 
 <!-- EDIT CLINICA OVERLAY -->
-<div id="editClOverlay" class="edit-ov" style="display:none" onclick="if(event.target===this)closeEditClinica()">
+<div id="editClOverlay" class="edit-ov" style="display:none">
 <div class="edit-box">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
     <div class="edit-title">🛠 EDITAR CLÍNICA</div>
@@ -1747,6 +1977,39 @@ function toast(msg){var t=document.getElementById('toast');t.textContent=msg;t.c
     <button class="edit-reset" onclick="resetEditClinica()">↺ Restaurar original</button>
     <button class="edit-cancel" onclick="closeEditClinica()">Cancelar</button>
     <button class="edit-save" onclick="saveEditClinica()">💾 GUARDAR</button>
+  </div>
+</div>
+</div>
+<!-- NEW CLINIC OVERLAY -->
+<div id="newClOverlay" class="edit-ov" style="display:none">
+<div class="edit-box" style="max-width:460px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="edit-title">+ NUEVA CLÍNICA</div>
+    <button onclick="closeNewClinica()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:0 4px">✕</button>
+  </div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:14px;line-height:1.5">Introduce los datos básicos. Podrás completar precios, protocolo y más desde 🛠 Editar.</div>
+  <div class="edit-row"><div class="edit-label">Nombre clínica *</div><input id="newClName" type="text" class="edit-input" placeholder="NOMBRE EN MAYÚSCULAS"></div>
+  <div class="edit-row"><div class="edit-label">Doctor / Ortodoncista</div><input id="newClDoctor" type="text" class="edit-input" placeholder="Dr. Nombre Apellido"></div>
+  <div class="edit-row"><div class="edit-label">Dirección</div><input id="newClDir" type="text" class="edit-input" placeholder="C/Ejemplo 12 (Barrio)"></div>
+  <div class="edit-row"><div class="edit-label">Teléfono</div><input id="newClTel" type="text" class="edit-input" placeholder="91xxxxxxx"></div>
+  <div class="edit-row"><div class="edit-label">Email(s) de contacto</div><input id="newClEmail" type="text" class="edit-input" placeholder="clinica@ejemplo.com; otro@ejemplo.com"></div>
+  <div class="edit-btns">
+    <button class="edit-cancel" onclick="closeNewClinica()">Cancelar</button>
+    <button class="edit-save" onclick="saveNewClinica()">✅ CREAR CLÍNICA</button>
+  </div>
+</div>
+</div>
+
+<!-- DELETE CLINIC OVERLAY -->
+<div id="delClOverlay" class="edit-ov" style="display:none">
+<div class="edit-box" style="max-width:400px;text-align:center">
+  <div class="edit-title" style="color:#ff6b6b;margin-bottom:16px">🗑 BORRAR CLÍNICA</div>
+  <div style="font-size:14px;color:var(--fg);margin-bottom:8px">¿Eliminar definitivamente:</div>
+  <div id="delClName" style="font-size:15px;font-weight:700;color:var(--accent2);margin-bottom:16px;font-family:'JetBrains Mono',monospace"></div>
+  <div style="font-size:11px;color:var(--muted);margin-bottom:20px;line-height:1.5">Esto eliminará la clínica y todas sus ediciones guardadas. Las clínicas del Excel original no se pueden borrar permanentemente y reaparecerán al recargar.</div>
+  <div class="edit-btns">
+    <button class="edit-cancel" onclick="closeDeleteClinica()">Cancelar</button>
+    <button onclick="confirmDeleteClinica()" style="background:#ff6b6b22;border:1px solid #ff6b6b66;color:#ff6b6b;border-radius:8px;padding:10px 18px;font-family:Sora,sans-serif;font-weight:600;font-size:13px;cursor:pointer">🗑 SÍ, ELIMINAR</button>
   </div>
 </div>
 </div>
