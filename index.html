@@ -417,7 +417,7 @@ function hasEdits(name){return !!EDITS_MAP[name];}
 function loadEditsFromSheets(){
   if(_editsLoaded)return;
   // First ping to check script is alive
-  gcalFetch(SCRIPT_URL+'?action=ping',
+  sheetsRead('ping',
     function(pingR){
       if(!pingR||!pingR.ok){
         console.warn('Script ping failed',pingR);
@@ -429,7 +429,7 @@ function loadEditsFromSheets(){
         toast('⚠ Google Sheet no configurado en el script');
       }
       // Now load edits
-      gcalFetch(SCRIPT_URL+'?action=loadEdits',
+      sheetsRead('loadEdits',
         function(r){
           if(!r||!r.ok||!r.edits){console.warn('loadEdits: bad response',r);return;}
           _editsLoaded=true;
@@ -460,7 +460,7 @@ function loadEditsFromSheets(){
 
 // Also load custom clinics from Sheets on startup
 function loadCustomClinicsFromSheets(){
-  gcalFetch(SCRIPT_URL+'?action=loadCustomClinics',
+  sheetsRead('loadCustomClinics',
     function(r){
       if(!r||!r.ok||!r.clinics||!r.clinics.length)return;
       r.clinics.forEach(function(cc){
@@ -865,27 +865,55 @@ function gcalFetch(url,onSuccess,onError){
 
 
 
-// sheetsFetch — sends data to Google Script via fetch POST (no CORS needed for writes)
-// For reads, falls back to JSONP (gcalFetch)
+// sheetsFetch — POST for writes (large data), GET+fetch for reads
 function sheetsFetch(params, onSuccess, onError){
-  // Build form body
   var body=new URLSearchParams();
   Object.keys(params).forEach(function(k){body.append(k,params[k]);});
-  // Use fetch with no-cors for fire-and-forget writes
-  // Google Script returns a redirect which no-cors handles fine
-  fetch(SCRIPT_URL, {
-    method:'POST',
-    body:body,
-    redirect:'follow'
-  })
-  .then(function(r){
-    // no-cors returns opaque response — treat any response as success
-    if(onSuccess)onSuccess({ok:true});
-  })
+  fetch(SCRIPT_URL, {method:'POST', body:body, redirect:'follow'})
+  .then(function(r){ if(onSuccess)onSuccess({ok:true}); })
   .catch(function(err){
-    // Fallback: try GET with JSONP if POST fails
     var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
     gcalFetch(SCRIPT_URL+'?'+qs, onSuccess, onError);
+  });
+}
+
+// sheetsRead — reads from Google Script via fetch as text (avoids CORS)
+// Google Script returns JSONP when callback param is present
+function sheetsRead(action, onSuccess, onError){
+  var cbName='_sr'+Math.floor(Math.random()*99999999);
+  var url=SCRIPT_URL+'?action='+action+'&callback='+cbName+'&nocache='+Date.now();
+  var timer=setTimeout(function(){
+    delete window[cbName];
+    if(onError)onError(new Error('timeout'));
+  },15000);
+  window[cbName]=function(data){
+    clearTimeout(timer);
+    delete window[cbName];
+    onSuccess(data);
+  };
+  // Try fetch first (reads the JSONP text without CORS issues)
+  fetch(url,{redirect:'follow'})
+  .then(function(r){return r.text();})
+  .then(function(text){
+    clearTimeout(timer);
+    delete window[cbName];
+    var json=text.trim();
+    // Strip JSONP wrapper: cbName({...}) → {...}
+    var s=json.indexOf('(');
+    var e=json.lastIndexOf(')');
+    if(s>-1&&e>s)json=json.slice(s+1,e);
+    try{onSuccess(JSON.parse(json));}catch(ex){if(onError)onError(ex);}
+  })
+  .catch(function(){
+    // fetch failed — fall back to JSONP script tag
+    var script=document.createElement('script');
+    script.src=url;
+    script.onerror=function(){
+      clearTimeout(timer);delete window[cbName];
+      document.head.removeChild(script);
+      if(onError)onError(new Error('script error'));
+    };
+    document.head.appendChild(script);
   });
 }
 
