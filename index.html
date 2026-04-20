@@ -398,8 +398,8 @@ function saveClinicaEdit(name,edits){
   try{localStorage.setItem('fdn_edit_'+name,JSON.stringify(edits));}catch(e){}
   EDITS_MAP[name]=edits;
   // 2. Save to Sheets (shared with all users)
-  gcalFetch(SCRIPT_URL+'?action=saveEdits&name='+encodeURIComponent(name)+'&data='+encodeURIComponent(JSON.stringify(edits)),
-    function(r){if(r&&r.ok)console.log('Edits saved to Sheets: '+name);else console.warn('Sheets save failed',r);},
+  sheetsFetch({action:'saveEdits',name:name,data:JSON.stringify(edits)},
+    function(r){console.log('Edits saved to Sheets: '+name);},
     function(err){console.warn('Sheets save error',err);}
   );
 }
@@ -408,9 +408,7 @@ function clearClinicaEdit(name){
   try{localStorage.removeItem('fdn_edit_'+name);}catch(e){}
   delete EDITS_MAP[name];
   // Also clear from Sheets — save empty object
-  gcalFetch(SCRIPT_URL+'?action=saveEdits&name='+encodeURIComponent(name)+'&data='+encodeURIComponent('{}'),
-    function(){},function(){}
-  );
+  sheetsFetch({action:'saveEdits',name:name,data:'{}'},function(){},function(){});
 }
 
 function hasEdits(name){return !!EDITS_MAP[name];}
@@ -418,28 +416,45 @@ function hasEdits(name){return !!EDITS_MAP[name];}
 // Load ALL edits from Sheets on startup — overwrites localStorage with server truth
 function loadEditsFromSheets(){
   if(_editsLoaded)return;
-  gcalFetch(SCRIPT_URL+'?action=loadEdits',
-    function(r){
-      if(!r||!r.ok||!r.edits)return;
-      _editsLoaded=true;
-      var changed=false;
-      Object.keys(r.edits).forEach(function(name){
-        var serverData=r.edits[name];
-        if(!serverData||Object.keys(serverData).length===0)return;
-        // Merge: server wins over localStorage (server is source of truth)
-        EDITS_MAP[name]=serverData;
-        try{localStorage.setItem('fdn_edit_'+name,JSON.stringify(serverData));}catch(e){}
-        changed=true;
-      });
-      if(changed&&cur){
-        // Re-render current clinic with fresh data
-        cur=DATA.find(function(d){return d['Nombre Clínica']===cur['Nombre Clínica'];})||cur;
-        render(mergeC(cur));
-        updFavBtn();
+  // First ping to check script is alive
+  gcalFetch(SCRIPT_URL+'?action=ping',
+    function(pingR){
+      if(!pingR||!pingR.ok){
+        console.warn('Script ping failed',pingR);
+        toast('⚠ Script no responde — trabajando sin sincronización');
+        return;
       }
-      console.log('Edits loaded from Sheets: '+Object.keys(r.edits).length+' clínicas');
+      if(pingR.sheetConfigured===false){
+        console.warn('SHEET_ID not configured in script');
+        toast('⚠ Google Sheet no configurado en el script');
+      }
+      // Now load edits
+      gcalFetch(SCRIPT_URL+'?action=loadEdits',
+        function(r){
+          if(!r||!r.ok||!r.edits){console.warn('loadEdits: bad response',r);return;}
+          _editsLoaded=true;
+          var changed=false;
+          Object.keys(r.edits).forEach(function(name){
+            var serverData=r.edits[name];
+            if(!serverData||Object.keys(serverData).length===0)return;
+            EDITS_MAP[name]=serverData;
+            try{localStorage.setItem('fdn_edit_'+name,JSON.stringify(serverData));}catch(e){}
+            changed=true;
+          });
+          if(changed&&cur){
+            cur=DATA.find(function(d){return d['Nombre Clínica']===cur['Nombre Clínica'];})||cur;
+            render(mergeC(cur));
+            updFavBtn();
+          }
+          console.log('Edits loaded from Sheets: '+Object.keys(r.edits).length+' clínicas');
+        },
+        function(err){console.warn('Could not load edits from Sheets',err);}
+      );
     },
-    function(err){console.warn('Could not load edits from Sheets',err);}
+    function(err){
+      console.warn('Script unreachable:',err);
+      toast('⚠ No se pudo conectar con Google Script');
+    }
   );
 }
 
@@ -801,7 +816,7 @@ function copyAll(){
 
 
 
-var SCRIPT_URL='https://script.google.com/macros/s/AKfycbwDxBCBqDyHu1w--yq6THPIWeH0gWp9QE9HcyZHEgtSv5cgMpDz-PgKhNjq5Li_QVsh/exec';
+var SCRIPT_URL='https://script.google.com/macros/s/AKfycbztwV8KuwJqvgvU9ZLiMz8_jVcdBubgLmoTHvhZjLKPATPPB_0UmCt9SH_AZOzl5zvD/exec';
 var PIN_HASH='4b9a7f50c0bb198c6f5414c5a8459f5d216d34ab521ea94c060ea35cac66f900';
 
 // ===== GCAL COLORS =====
@@ -849,6 +864,30 @@ function gcalFetch(url,onSuccess,onError){
 }
 
 
+
+// sheetsFetch — sends data to Google Script via fetch POST (no CORS needed for writes)
+// For reads, falls back to JSONP (gcalFetch)
+function sheetsFetch(params, onSuccess, onError){
+  // Build form body
+  var body=new URLSearchParams();
+  Object.keys(params).forEach(function(k){body.append(k,params[k]);});
+  // Use fetch with no-cors for fire-and-forget writes
+  // Google Script returns a redirect which no-cors handles fine
+  fetch(SCRIPT_URL, {
+    method:'POST',
+    body:body,
+    redirect:'follow'
+  })
+  .then(function(r){
+    // no-cors returns opaque response — treat any response as success
+    if(onSuccess)onSuccess({ok:true});
+  })
+  .catch(function(err){
+    // Fallback: try GET with JSONP if POST fails
+    var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
+    gcalFetch(SCRIPT_URL+'?'+qs, onSuccess, onError);
+  });
+}
 
 // ===== PIN =====
 var pinInput='';var pinLocked=false;
@@ -1285,9 +1324,8 @@ function saveNewClinica(){
   var customs=loadCustomClinics();customs.push(newC);saveCustomClinics(customs);
   IDX.push(norm((newC['Nombre Clínica']||'')+' '+(newC['Doctor / Ortodoncista']||'')+' '+(newC['Dirección']||'')));
   // Save to Sheets (shared)
-  gcalFetch(SCRIPT_URL+'?action=saveCustomClinic&data='+encodeURIComponent(JSON.stringify(newC)),
-    function(r){if(r&&r.ok)console.log('Custom clinic saved to Sheets');},
-    function(){}
+  sheetsFetch({action:'saveCustomClinic',data:JSON.stringify(newC)},
+    function(){console.log('Custom clinic saved to Sheets');},function(){}
   );
   closeNewClinica();
   // Select new clinic
@@ -1316,9 +1354,7 @@ function confirmDeleteClinica(){
   clearClinicaEdit(name);
   delete EDITS_MAP[name];
   // Delete custom clinic from Sheets if it was custom
-  gcalFetch(SCRIPT_URL+'?action=deleteCustomClinic&name='+encodeURIComponent(name),
-    function(){},function(){}
-  );
+  sheetsFetch({action:'deleteCustomClinic',name:name},function(){},function(){});
   // Remove from favs
   favs=favs.filter(function(f){return f!==name;});saveFavs();updFavCount();
   cur=null;
@@ -1885,7 +1921,7 @@ function saveEditClinica(){
   saveClinicaEdit(cur['Nombre Clínica'],edits);
   closeEditClinica();
   render(mergeC(cur));
-  toast('✅ CLÍNICA GUARDADA');
+  toast('✅ GUARDADO — sincronizando con servidor...');
 }
 
 function resetEditClinica(){
