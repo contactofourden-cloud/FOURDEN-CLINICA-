@@ -397,9 +397,22 @@ function saveClinicaEdit(name,edits){
   // 1. Save locally (instant)
   try{localStorage.setItem('fdn_edit_'+name,JSON.stringify(edits));}catch(e){}
   EDITS_MAP[name]=edits;
-  // 2. Save to Sheets (shared with all users)
-  sheetsFetch({action:'saveEdits',name:name,data:JSON.stringify(edits)},
-    function(r){console.log('Edits saved to Sheets: '+name);},
+  // 2. Save to Sheets — strip empty fields to keep URL short
+  var compact={};
+  Object.keys(edits).forEach(function(k){
+    var v=edits[k];
+    if(v===null||v===undefined)return;
+    if(typeof v==='string'&&v==='')return;
+    if(Array.isArray(v)&&v.length===0)return;
+    if(typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).length===0)return;
+    compact[k]=v;
+  });
+  var data=JSON.stringify(compact);
+  sheetsFetch({action:'saveEdits',name:name,data:data},
+    function(r){
+      if(r&&r.ok){console.log('Saved to Sheets: '+name);}
+      else{console.warn('Sheets save failed',r);}
+    },
     function(err){console.warn('Sheets save error',err);}
   );
 }
@@ -865,16 +878,12 @@ function gcalFetch(url,onSuccess,onError){
 
 
 
-// sheetsFetch — POST for writes (large data), GET+fetch for reads
+// sheetsFetch — uses GET+JSONP (most reliable with Google Script)
 function sheetsFetch(params, onSuccess, onError){
-  var body=new URLSearchParams();
-  Object.keys(params).forEach(function(k){body.append(k,params[k]);});
-  fetch(SCRIPT_URL, {method:'POST', body:body, redirect:'follow'})
-  .then(function(r){ if(onSuccess)onSuccess({ok:true}); })
-  .catch(function(err){
-    var qs=Object.keys(params).map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);}).join('&');
-    gcalFetch(SCRIPT_URL+'?'+qs, onSuccess, onError);
-  });
+  var qs=Object.keys(params).map(function(k){
+    return encodeURIComponent(k)+'='+encodeURIComponent(params[k]);
+  }).join('&');
+  gcalFetch(SCRIPT_URL+'?'+qs, onSuccess, onError);
 }
 
 // sheetsRead — reads from Google Script via fetch as text (avoids CORS)
