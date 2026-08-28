@@ -1582,29 +1582,31 @@ const FRONTAL_INTRAORAL_SVG = `
   <line x1="150" y1="15" x2="150" y2="185" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
 
-// Occlusal SUPERIOR — arch opens ∩ (anteriors at TOP, molares extendiéndose hacia abajo)
+// Occlusal SUPERIOR — arch opens ∩. Ampliado: ocupa casi todo el recuadro
+// para que la arcada real coincida con la silueta sin dejar aire alrededor.
 const OCCLUSAL_SUP_SVG = `
 <svg viewBox="0 0 300 225" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
-  <path d="M 40 200 Q 40 30, 150 20 Q 260 30, 260 200" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.6)" stroke-width="2.2" stroke-dasharray="6 4"/>
-  <path d="M 90 190 Q 90 60, 150 50 Q 210 60, 210 190" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.3" stroke-dasharray="3 3"/>
-  <line x1="150" y1="10" x2="150" y2="220" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M 20 215 Q 20 15, 150 8 Q 280 15, 280 215" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.6)" stroke-width="2.2" stroke-dasharray="6 4"/>
+  <path d="M 75 205 Q 75 50, 150 42 Q 225 50, 225 205" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.3" stroke-dasharray="3 3"/>
+  <line x1="150" y1="5" x2="150" y2="222" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
 
-// Occlusal INFERIOR — arch opens ∪ (anteriors at BOTTOM, molares extendiéndose hacia arriba)
+// Occlusal INFERIOR — arch opens ∪. Ampliado para llenar el recuadro.
 const OCCLUSAL_INF_SVG = `
 <svg viewBox="0 0 300 225" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
-  <path d="M 40 25 Q 40 195, 150 205 Q 260 195, 260 25" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.6)" stroke-width="2.2" stroke-dasharray="6 4"/>
-  <path d="M 90 35 Q 90 165, 150 175 Q 210 165, 210 35" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.3" stroke-dasharray="3 3"/>
-  <line x1="150" y1="10" x2="150" y2="220" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <path d="M 20 10 Q 20 210, 150 217 Q 280 210, 280 10" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.6)" stroke-width="2.2" stroke-dasharray="6 4"/>
+  <path d="M 75 20 Q 75 175, 150 183 Q 225 175, 225 20" fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.3" stroke-dasharray="3 3"/>
+  <line x1="150" y1="5" x2="150" y2="222" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
 
-// Canine (crop 4:5) — retractor ovalado en HORIZONTAL (más ancho que alto)
-// porque la boca abierta con retractor se ve más extendida a los lados
-// que en altura. Deja margen arriba y abajo del ovoide dentro del recuadro.
+// Canine (crop 4:5) — óvalo casi CIRCULAR (rx≈ry), no rectangular. La zona
+// del retractor con canino visible se aproxima más a una circunferencia
+// que a una franja apaisada. Al ser mayor cubre más de la foto y evita
+// que el recorte quede demasiado amplio.
 const CANINE_SVG = `
 <svg viewBox="0 0 300 375" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
-  <ellipse cx="150" cy="187" rx="128" ry="95" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="6 4"/>
-  <line x1="15" y1="187" x2="285" y2="187" stroke="rgba(247,201,72,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <ellipse cx="150" cy="187" rx="130" ry="130" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="6 4"/>
+  <line x1="10" y1="187" x2="290" y2="187" stroke="rgba(247,201,72,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
   <line x1="150" y1="20" x2="150" y2="355" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
 
@@ -2930,7 +2932,7 @@ function drawMosaic() {
   const AREA_Y = HEADER_H + PAD;
   const BOTTOM_RESERVE = 40;
   const AREA_H = A4_H - AREA_Y - BOTTOM_RESERVE;
-  const weights = [1.10, 0.75, 0.95, 0.75, 0.50];
+  const weights = [1.10, 0.75, 0.80, 0.75, 0.50];  // fila 3 (oclusales) bajada de 0.95→0.80: se veían demasiado ampliadas
   const totalW = weights.reduce((a, b) => a + b, 0);
   const usableH = AREA_H - PAD * 4;
   const targetHeights = weights.map(w => usableH * (w / totalW));
