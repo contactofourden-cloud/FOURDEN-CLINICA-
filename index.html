@@ -2097,6 +2097,7 @@ function refreshCroppedColor(slot) {
   if (!slot.croppedCanvasOriginal) return;
   slot.croppedCanvas = applyColorFilterToCanvas(slot.croppedCanvasOriginal, slot);
   invalidateThumb(slot);
+  slot._dirty = false;
 }
 
 // =====================================================
@@ -2403,11 +2404,17 @@ function buildColorCard(slot) {
   resetBtn.title = 'Reset color';
   resetBtn.onclick = e => {
     e.stopPropagation();
-    slot.brightness = 100; slot.contrast = 100; slot.saturation = 100; slot.warmth = 0; slot.gumsPink = 0; slot.teethWhite = 0;
+    slot.brightness = 100; slot.contrast = 100; slot.saturation = 100; slot.warmth = 0;
+    slot.gumsPink = 0; slot.teethWhite = 0;
+    // Invalidamos ambos caches — sin esto la card seguiría mostrando el
+    // dataURL bakeado con encías/dientes anteriores.
+    slot._previewSrc = null;
+    slot._colorImgUrl = null;
     refreshCroppedColor(slot);
-    updateSingleCardVisual(slot);
+    renderColorGrid();
     updateSlidersFromSelection();
     updateCroppedList();
+    toast(`Reset de "${slot.name}" — vuelto al original`, 'success');
   };
   acts.appendChild(resetBtn);
   info.appendChild(acts);
@@ -2481,10 +2488,14 @@ function updateSlidersFromSelection() {
     document.getElementById('cs-contrast').value = s.contrast;
     document.getElementById('cs-saturation').value = s.saturation;
     document.getElementById('cs-warmth').value = s.warmth;
+    document.getElementById('cs-gumsPink').value = s.gumsPink || 0;
+    document.getElementById('cs-teethWhite').value = s.teethWhite || 0;
     document.getElementById('cv-brightness').textContent = s.brightness;
     document.getElementById('cv-contrast').textContent = s.contrast;
     document.getElementById('cv-saturation').textContent = s.saturation;
     document.getElementById('cv-warmth').textContent = s.warmth;
+    document.getElementById('cv-gumsPink').textContent = s.gumsPink || 0;
+    document.getElementById('cv-teethWhite').textContent = s.teethWhite || 0;
   } else {
     ids.forEach(k => {
       const same = arr.every(s => s[k] === arr[0][k]);
@@ -2514,6 +2525,14 @@ function updateSelectionCount() {
 function setColorReference(slotId) {
   const slot = slots.find(s => s.id === slotId);
   if (!slot) return;
+  // Toggle: si ya es referencia, la quitamos
+  if (slot.isColorRef) {
+    slot.isColorRef = false;
+    renderColorGrid();
+    renderPhotoList();
+    toast(`Referencia quitada de "${slot.name}"`, 'info');
+    return;
+  }
   slots.forEach(s => { if (s.colorRow === slot.colorRow) s.isColorRef = false; });
   slot.isColorRef = true;
   computeColorStats(slot);
@@ -2602,7 +2621,7 @@ function onColorSlider(key) {
   // Apply the value to every selected slot immediately (state stays in sync)
   colorSelectedIds.forEach(id => {
     const slot = slots.find(s => s.id === id);
-    if (slot) slot[key] = v;
+    if (slot) { slot[key] = v; slot._dirty = true; }
   });
 
   const isPixelBased = (key === 'gumsPink' || key === 'teethWhite');
@@ -2659,13 +2678,21 @@ function resetSelectedColors() {
   colorSelectedIds.forEach(id => {
     const slot = slots.find(s => s.id === id);
     if (!slot) return;
-    slot.brightness = 100; slot.contrast = 100; slot.saturation = 100; slot.warmth = 0; slot.gumsPink = 0; slot.teethWhite = 0;
+    slot.brightness = 100; slot.contrast = 100; slot.saturation = 100; slot.warmth = 0;
+    slot.gumsPink = 0; slot.teethWhite = 0;
+    // Invalidamos TODOS los caches de preview para que la card vuelva a
+    // pintarse desde el croppedCanvasOriginal (sin efectos pixel-based).
+    slot._previewSrc = null;
+    slot._colorImgUrl = null;
     refreshCroppedColor(slot);
-    updateSingleCardVisual(slot);
   });
+  // Re-render el grid entero — así los <img src="..."> de las cards se
+  // reconstruyen desde el original y no siguen mostrando el preview con
+  // encías/dientes anteriores.
+  renderColorGrid();
   updateSlidersFromSelection();
   updateCroppedList();
-  toast('Color reseteado', 'success');
+  toast('Color reseteado — vuelto al original', 'success');
 }
 
 // CONSERVATIVE auto-match algorithm
@@ -2834,18 +2861,22 @@ function generateMosaic() {
     const names = missing.map(s => s.name).join(', ');
     toast(`⚠ Faltan ${missing.length}: ${names}`, 'info');
   }
-  // Safety-net: regenerate every slot's croppedCanvas from its original
-  // + current colour values. Guarantees el mosaico refleja siempre el
-  // último estado de la sección de color aunque algún change no llegara.
-  getAllSlots().forEach(s => {
-    if (s.croppedCanvasOriginal) {
-      s.croppedCanvas = applyColorFilterToCanvas(s.croppedCanvasOriginal, s);
-      invalidateThumb(s);
-      s._previewSrc = null;
-    }
+  // Safety-net inteligente: solo refresca los slots marcados _dirty
+  // (color cambiado). Antes regeneraba TODO cada vez que se abría el
+  // mosaico (2-3 s en fotos grandes). Ahora en el caso típico no hace
+  // nada porque el 'change' event ya actualizó cada slot al soltar el
+  // slider — el mosaico se abre al instante.
+  const toRefresh = getAllSlots().filter(s => s._dirty && s.croppedCanvasOriginal);
+  toRefresh.forEach(s => {
+    s.croppedCanvas = applyColorFilterToCanvas(s.croppedCanvasOriginal, s);
+    invalidateThumb(s);
+    s._previewSrc = null;
+    s._dirty = false;
   });
   document.getElementById('mosaic-section').classList.add('visible');
-  drawMosaic();
+  // setTimeout(0): dejamos que el navegador pinte el cambio de vista
+  // ANTES de bloquearse dibujando el mosaico A4 (que puede tardar).
+  setTimeout(drawMosaic, 0);
 }
 function resetMosaicOffsets() { mosaicOffsets = {}; drawMosaic(); toast('Ajustes reseteados', 'success'); }
 function getMosaicAdjust(slotId) {
@@ -3313,8 +3344,17 @@ function brushPaintMask(e) {
       if (val > brushMaskFloat[mi]) { brushMaskFloat[mi] = val; changed = true; }
     }
   }
-  // Live preview: apply mask to base data and show
-  if (changed) brushPreview();
+  // Live preview con rAF throttle — evita que cada mousemove dispare
+  // un getImageData/putImageData sobre 5+ megapíxeles.
+  if (changed) _scheduleBrushPreview();
+}
+let _brushPreviewRAF = null;
+function _scheduleBrushPreview() {
+  if (_brushPreviewRAF) return;
+  _brushPreviewRAF = requestAnimationFrame(() => {
+    _brushPreviewRAF = null;
+    brushPreview();
+  });
 }
 
 // Show live preview of the mask applied to base image
