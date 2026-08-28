@@ -1599,13 +1599,11 @@ const OCCLUSAL_INF_SVG = `
   <line x1="150" y1="5" x2="150" y2="222" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
 
-// Canine (crop 4:5) — óvalo casi CIRCULAR (rx≈ry), no rectangular. La zona
-// del retractor con canino visible se aproxima más a una circunferencia
-// que a una franja apaisada. Al ser mayor cubre más de la foto y evita
-// que el recorte quede demasiado amplio.
+// Canine (crop 4:5 portrait). Círculo casi cuadrado (rx≈ry) centrado —
+// el retractor sigue viéndose redondeado sin ser una franja apaisada.
 const CANINE_SVG = `
 <svg viewBox="0 0 300 375" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;">
-  <ellipse cx="150" cy="187" rx="130" ry="130" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="6 4"/>
+  <ellipse cx="150" cy="187" rx="120" ry="120" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.55)" stroke-width="2" stroke-dasharray="6 4"/>
   <line x1="10" y1="187" x2="290" y2="187" stroke="rgba(247,201,72,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
   <line x1="150" y1="20" x2="150" y2="355" stroke="rgba(79,142,247,0.85)" stroke-width="1.5" stroke-dasharray="5 4"/>
 </svg>`;
@@ -2932,7 +2930,10 @@ function drawMosaic() {
   const AREA_Y = HEADER_H + PAD;
   const BOTTOM_RESERVE = 40;
   const AREA_H = A4_H - AREA_Y - BOTTOM_RESERVE;
-  const weights = [1.10, 0.75, 0.80, 0.75, 0.50];  // fila 3 (oclusales) bajada de 0.95→0.80: se veían demasiado ampliadas
+  // Fila 3 con peso 0.95 (como el mosaico antiguo que gustaba) — así queda
+  // más grande que la fila 4 de caninos. La cap del paso siguiente evita
+  // que la redistribución del espacio libre la infle todavía más.
+  const weights = [1.10, 0.75, 0.95, 0.75, 0.50];
   const totalW = weights.reduce((a, b) => a + b, 0);
   const usableH = AREA_H - PAD * 4;
   const targetHeights = weights.map(w => usableH * (w / totalW));
@@ -2962,6 +2963,9 @@ function drawMosaic() {
   // STEP 2 — initial height = min(target, maxH). Rows 1/2 hit their caps,
   // leaving vertical empty space at the bottom of the sheet.
   rowDef.forEach((r, i) => { r.h = Math.min(targetHeights[i], r.maxH); });
+  // Fijar la fila 3 (oclusales) a su target — que la redistribución no
+  // la amplifique en el mosaico. Sobrantes quedan para caninos y labios.
+  if (rowDef[2]) rowDef[2].maxH = rowDef[2].h;
 
   // STEP 3 — redistribute leftover vertical space to rows that CAN still
   // grow (i.e. not already at their width cap), proportional to their
@@ -3022,8 +3026,12 @@ function drawImageInCell(ctx, img, x, y, w, h, adj) {
   const cr = w / h;
   let dx, dy, dw, dh;
   if (Math.abs(ir - cr) < 0.02) { dw = w * scale; dh = h * scale; dx = x + (w - dw)/2 + xOffset; dy = y + (h - dh)/2 + yOffset; }
-  else if (ir > cr) { dh = h * scale; dw = dh * ir; dx = x + (w - dw)/2 + xOffset; dy = y + (h - dh)/2 + yOffset; }
-  else { dw = w * scale; dh = dw / ir; dx = x + (w - dw)/2 + xOffset; dy = y + (h - dh)/2 + yOffset; }
+  // CONTAIN (antes era COVER): si la foto tiene aspecto diferente a la celda
+  // se ajusta al lado MENOR y deja letterbox del color de fondo. Así se ve
+  // TODO el recorte en el mosaico. Antes se escalaba para llenar y los
+  // bordes quedaban cortados, obligando a achicar con las esquinas.
+  else if (ir > cr) { dw = w * scale; dh = dw / ir; dx = x + (w - dw)/2 + xOffset; dy = y + (h - dh)/2 + yOffset; }
+  else               { dh = h * scale; dw = dh * ir; dx = x + (w - dw)/2 + xOffset; dy = y + (h - dh)/2 + yOffset; }
   ctx.save();
   ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
   ctx.drawImage(img, dx, dy, dw, dh);
